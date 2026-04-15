@@ -1,19 +1,22 @@
-import datetime
-import tempfile
-import os
-from datetime import timedelta
-from email.policy import default
+from datetime import datetime
 
-from PIL import Image
 from django.contrib.auth import get_user_model
+
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APIClient
 from rest_framework import status
 
-from cinema.models import CinemaHall, MovieSession, Movie, Genre, Actor
-from cinema.serializers import MovieSessionSerializer, MovieSessionListSerializer
+from cinema.models import (
+    CinemaHall,
+    MovieSession,
+    Movie,
+    Genre,
+    Actor
+)
+from cinema.serializers import MovieSessionListSerializer
 
 BASE_URL = reverse("cinema:moviesession-list")
 DETAIL_URL = reverse("cinema:moviesession-detail", kwargs={"pk": 1})
@@ -50,20 +53,13 @@ def sample_movie_session(**params):
     movie = sample_movie(**params)
 
     defaults = {
-        "show_time": "2022-06-02 14:00:00",
+        "show_time": timezone.make_aware(datetime(2022, 6, 2, 14, 0)),
         "movie": movie,
         "cinema_hall": cinema_hall,
     }
     defaults.update(params)
 
     return MovieSession.objects.create(**defaults)
-
-def image_upload_url(movie_id):
-    """Return URL for recipe image upload"""
-    return reverse("cinema:movie-upload-image", args=[movie_id])
-
-def detail_url(movie_id):
-    return reverse("cinema:movie-detail", args=[movie_id])
 
 
 class UnAthorizedAPITestCase(TestCase):
@@ -78,15 +74,18 @@ class UnAthorizedAPITestCase(TestCase):
 class AuthorizedAPITestCase(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = get_user_model().objects.create_user(email="user@user.test", password="passworduser")
+        self.user = get_user_model().objects.create_user(
+            email="user@user.test",
+            password="passworduser"
+        )
         self.client.force_authenticate(self.user)
         self.movie = sample_movie()
         self.genre = sample_genre()
         self.actor = sample_actor()
 
     def test_movie_session_list(self):
+        queryset = MovieSession.objects.all()
         response = self.client.get(BASE_URL)
-        movie_sessions = MovieSession.objects.all()
-        serializer = MovieSessionListSerializer(movie_sessions, many=True)
+        serializer = MovieSessionListSerializer(queryset, many=True)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, serializer.data)
+        self.assertEqual(serializer.data, response.data)
